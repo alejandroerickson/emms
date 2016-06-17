@@ -412,6 +412,13 @@ Use nil for no sorting."
   :group 'emms-browser
   :type 'hook)
 
+(defcustom emms-browser-move-files-to-trash-hook nil
+  "*Hook run after files have been moved to trash.
+This hook can be used to clean up extra files, such as album covers.
+Called once for each directory."
+  :group 'emms-browser
+  :type 'hook)
+
 (defcustom emms-browser-delete-files-hook nil
   "*Hook run after files have been deleted.
 This hook can be used to clean up extra files, such as album covers.
@@ -1362,6 +1369,57 @@ Disabled by default."
     (message "Deleting files..done")))
 
 (put 'emms-browser-delete-files 'disabled t)
+
+(defun emms-browser-move-files-to-trash ()
+      "Move all files under point to trash.
+Disabled by default."
+      (interactive)
+      (let ((tracks (emms-browser-tracks-at-point))
+            dirs path)
+        (unless (yes-or-no-p
+                 (format "Really permanently move these %d tracks to trash? "
+                         (length tracks)))
+          (error "Cancelled!"))
+        (message "Moving files to trash..")
+        (dolist (track tracks)
+          (setq path (emms-track-get track 'name))
+          (move-file-to-trash path)
+          (add-to-list 'dirs (file-name-directory path))
+          (emms-cache-del path))
+        ;; remove empty dirs
+        (dolist (dir dirs)
+          (run-hook-with-args 'emms-browser-move-files-to-trash-hook dir tracks)
+          (condition-case nil
+              (delete-directory dir)
+            (error nil)))
+        ;; remove the item from the browser
+        (emms-browser-delete-current-node)
+        (message "Moving files to trash..done")))
+
+    ;; disable this function so you have to do an extra confirmation to use it.
+(put 'emms-browser-move-files-to-trash-hook 'disabled t)
+
+(defun de-trash-covers-and-parents (dir tracks)
+  (when (> (length tracks) 1)
+    ;; if we're not trashing an individual file, trash covers too
+    (dolist (cover '("cover.jpg"
+                     "cover_med.jpg"
+                     "cover_small.jpg"
+                     "folder.jpg"))
+      (condition-case nil
+          (move-file-to-trash (concat dir cover))
+        (error nil)))
+    ;; try and delete empty parents - we actually do the work of the
+    ;; calling function here, too
+    (let (failed)
+      (while (and (not (string= dir "/"))
+                  (not failed))
+        (condition-case nil
+            (move-file-to-trash dir)
+          (error (setq failed t)))
+        (setq dir (file-name-directory (directory-file-name dir)))))))
+(add-hook 'emms-browser-delete-files-hook 'de-trash-covers-and-parents)
+(put 'de-trash-covers-and-parents  'disabled t)
 
 (defun emms-browser-clear-playlist ()
   (interactive)
