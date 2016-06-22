@@ -1397,7 +1397,7 @@ Disabled by default."
         (message "Moving files to trash..done")))
 
     ;; disable this function so you have to do an extra confirmation to use it.
-(put 'emms-browser-move-files-to-trash-hook 'disabled t)
+(put 'emms-browser-move-files-to-trash 'disabled t)
 
 (defun de-trash-covers-and-parents (dir tracks)
   (when (> (length tracks) 1)
