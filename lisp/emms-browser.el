@@ -263,6 +263,10 @@
 ;; The following code will delete covers at the same time, and remove
 ;; parent directories if they're now empty.
 
+;; Note that deleting more than one song from an album can result in
+;; deleting its album art too.  Conversely, deleting the last song in
+;; an album will not delete the album art.
+
 ;; (defun de-kill-covers-and-parents (dir tracks)
 ;;   (when (> (length tracks) 1)
 ;;     ;; if we're not deleting an individual file, delete covers too
@@ -1360,6 +1364,9 @@ Disabled by default."
       (emms-cache-del path))
     ;; remove empty dirs
     (dolist (dir dirs)
+      ;; If os x should check whether the only thing left is .DS_Store directory
+      ;; and delete it if that is the case.  Otherwise it prevents the directory
+      ;; from being removed.
       (run-hook-with-args 'emms-browser-delete-files-hook dir tracks)
       (condition-case nil
           (delete-directory dir)
@@ -1383,14 +1390,17 @@ Disabled by default."
         (message "Moving files to trash..")
         (dolist (track tracks)
           (setq path (emms-track-get track 'name))
-          (move-file-to-trash path)
+          (delete-file path t)
           (add-to-list 'dirs (file-name-directory path))
           (emms-cache-del path))
         ;; remove empty dirs
         (dolist (dir dirs)
+          ;; If os x, should check whether the only thing left is .DS_Store directory
+          ;; and delete it if that is the case.  Otherwise it prevents the directory
+          ;; from being removed.
           (run-hook-with-args 'emms-browser-move-files-to-trash-hook dir tracks)
           (condition-case nil
-              (delete-directory dir)
+              (delete-directory dir nil t)
             (error nil)))
         ;; remove the item from the browser
         (emms-browser-delete-current-node)
@@ -1398,28 +1408,6 @@ Disabled by default."
 
     ;; disable this function so you have to do an extra confirmation to use it.
 (put 'emms-browser-move-files-to-trash 'disabled t)
-
-(defun de-trash-covers-and-parents (dir tracks)
-  (when (> (length tracks) 1)
-    ;; if we're not trashing an individual file, trash covers too
-    (dolist (cover '("cover.jpg"
-                     "cover_med.jpg"
-                     "cover_small.jpg"
-                     "folder.jpg"))
-      (condition-case nil
-          (move-file-to-trash (concat dir cover))
-        (error nil)))
-    ;; try and delete empty parents - we actually do the work of the
-    ;; calling function here, too
-    (let (failed)
-      (while (and (not (string= dir "/"))
-                  (not failed))
-        (condition-case nil
-            (move-file-to-trash dir)
-          (error (setq failed t)))
-        (setq dir (file-name-directory (directory-file-name dir)))))))
-(add-hook 'emms-browser-delete-files-hook 'de-trash-covers-and-parents)
-(put 'de-trash-covers-and-parents  'disabled t)
 
 (defun emms-browser-clear-playlist ()
   (interactive)
